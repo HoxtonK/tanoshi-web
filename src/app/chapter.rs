@@ -142,6 +142,9 @@ impl Component for Chapter {
                         })
                     }
                 </div>
+                <div class="settings-overlay">
+
+                </div>
             </div>
         }
     }

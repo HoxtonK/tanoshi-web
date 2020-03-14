@@ -6,7 +6,7 @@ use yew::services::{FetchService, StorageService};
 use yew::{html, Component, ComponentLink, Html, Properties, ShouldRender};
 
 use super::component::model::{FavoriteManga, GetFavoritesResponse, GetMangasResponse};
-use super::component::Manga;
+use super::component::{BottomBar, Manga, TopBar};
 
 #[derive(Deserialize, Debug)]
 pub struct MangaModel {
@@ -75,6 +75,9 @@ impl Component for Home {
 
     fn view(&self) -> Html {
         html! {
+        <>
+            <TopBar />
+            <BottomBar/>
            <div class="container-fluid" >
                 <div class="row row-cols-sm-1 row-cols-md-3 row-cols-lg-5 row-cols-xl-6" style="height: 100%;">
                 { for self.mangas.iter().map(|manga|  html!{
@@ -87,6 +90,7 @@ impl Component for Home {
                 }) }
                 </div>
             </div>
+            </>
         }
     }
 }

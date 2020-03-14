@@ -4,6 +4,7 @@ use yew::{html, Component, ComponentLink, Html, Properties, ShouldRender};
 use yew_router::components::RouterAnchor;
 
 use super::component::model::{ChapterModel, GetChaptersResponse, GetMangaResponse, MangaModel};
+use super::component::{BottomBar, TopBar};
 use crate::app::AppRoute;
 
 use anyhow;
@@ -75,6 +76,9 @@ impl Component for Detail {
 
     fn view(&self) -> Html {
         html! {
+            <>
+            <TopBar />
+            <BottomBar/>
             <div class="container-fluid">
             <div class="row justify-content-center">
                 <div class="col-sm-auto">
@@ -108,6 +112,7 @@ impl Component for Detail {
                 </div>
             </div>
             </div>
+            </>
         }
     }
 }

@@ -89,8 +89,6 @@ impl App {
         }
         return html! {
         <>
-            <TopBar />
-            <BottomBar/>
             <div class="app">
             <Router<AppRoute, ()>
             render = Router::render(|switch: AppRoute| {

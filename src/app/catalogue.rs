@@ -1,11 +1,13 @@
 use super::component::Manga;
 use serde::Deserialize;
-use yew::format::{Json, Nothing};
+use yew::format::{Json, Nothing, Text};
 use yew::prelude::*;
 use yew::services::fetch::{FetchService, FetchTask};
 use yew::{html, Component, ComponentLink, Html, Properties, ShouldRender};
 
 use super::component::model::{FavoriteManga, GetFavoritesResponse, GetMangasResponse, MangaModel};
+use super::component::{BottomBar, TopBar};
+
 use http::{Request, Response};
 use std::borrow::BorrowMut;
 use yew::services::storage::Area;
@@ -33,8 +35,7 @@ pub struct Catalogue {
 }
 
 pub enum Msg {
-    MangaReady(GetMangasResponse),
-    FavoritesReady(GetFavoritesResponse),
+    FetchReady(String),
     ScrolledDown,
     Noop,
 }
@@ -75,31 +76,16 @@ impl Component for Catalogue {
     }
 
     fn mounted(&mut self) -> ShouldRender {
-        window().set_onscroll(Some(self.closure.as_ref().unchecked_ref()));
-        self.fetch_favorites();
+        self.fetch_catalogue();
         true
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
-            Msg::MangaReady(data) => {
-                let mut mangas = data.mangas;
-                self.mangas.append(&mut mangas);
-                self.is_fetching = false;
-            }
-            Msg::FavoritesReady(data) => {
-                self.favorites = data
-                    .favorites
-                    .unwrap()
-                    .iter()
-                    .map(|ch| ch.title.clone())
-                    .collect();
-                self.fetch_mangas();
-            }
+            Msg::FetchReady(data) => self.scrape_catalogue(data),
             Msg::ScrolledDown => {
                 if !self.is_fetching {
                     self.page += 1;
-                    self.fetch_mangas();
                 }
             }
 
@@ -112,6 +98,9 @@ impl Component for Catalogue {
 
     fn view(&self) -> Html {
         html! {
+        <>
+            <TopBar />
+            <BottomBar/>
             <div class="container-fluid">
                 <div class="row row-cols-sm-2 row-cols-md-3 row-cols-lg-5 row-cols-xl-6" style="height: 100%;">
                 { for self.mangas.iter().map(|manga| html!{
@@ -124,6 +113,7 @@ impl Component for Catalogue {
                 }) }
                 </div>
             </div>
+            </>
         }
     }
 
@@ -133,52 +123,69 @@ impl Component for Catalogue {
 }
 
 impl Catalogue {
-    fn fetch_mangas(&mut self) {
-        let req = Request::get(format!(
-            "/api/source/{}?sort_by=popularity&sort_order=descending&page={}",
-            self.source, self.page
+    fn fetch_catalogue(&mut self) {
+        let params = vec![
+            ("keyword".to_owned(), "".to_owned()),
+            ("page".to_owned(), "1".to_owned()),
+            ("sortBy".to_owned(), "popularity".to_owned()),
+            ("sortOrder".to_owned(), "descending".to_owned()),
+        ];
+
+        let urlencoded = serde_urlencoded::to_string(params).unwrap();
+
+        let req = Request::post(format!(
+            "https://api.allorigins.win/raw?url=https://mangaseeonline.us/search/request.php"
         ))
-        .body(Nothing)
+        .header(
+            "Content-Type",
+            "application/x-www-form-urlencoded; charset=utf-8",
+        )
+        .body(Ok(urlencoded))
         .expect("failed to build request");
 
         if let Ok(task) = FetchService::new().fetch(
             req,
-            self.link.callback(
-                |response: Response<Json<Result<GetMangasResponse, anyhow::Error>>>| {
-                    if let (meta, Json(Ok(data))) = response.into_parts() {
-                        if meta.status.is_success() {
-                            return Msg::MangaReady(data);
-                        }
-                    }
-                    Msg::Noop
-                },
-            ),
+            self.link.callback(|response: Response<Text>| {
+                if let (meta, Ok(data)) = response.into_parts() {
+                    return Msg::FetchReady(data);
+                }
+                Msg::Noop
+            }),
         ) {
             self.fetch_task = Some(FetchTask::from(task));
-            self.is_fetching = true;
         }
     }
 
-    fn fetch_favorites(&mut self) {
-        let req = Request::get("/api/favorites")
-            .header("Authorization", self.token.clone())
-            .body(Nothing)
-            .expect("failed to build request");
+    fn scrape_catalogue(&mut self, html: String) {
+        let mut mangas: Vec<MangaModel> = Vec::new();
 
-        if let Ok(task) = FetchService::new().fetch(
-            req,
-            self.link.callback(
-                |response: Response<Json<Result<GetFavoritesResponse, anyhow::Error>>>| {
-                    if let (meta, Json(Ok(data))) = response.into_parts() {
-                        if meta.status.is_success() {
-                            return Msg::FavoritesReady(data);
-                        }
-                    }
-                    Msg::Noop
-                },
-            ),
-        ) {
-            self.fetch_task = Some(FetchTask::from(task));
+        let document = scraper::Html::parse_document(&html);
+
+        let selector = scraper::Selector::parse(".requested .row").unwrap();
+        for row in document.select(&selector) {
+            let mut manga = MangaModel {
+                title: String::from(""),
+                author: String::from(""),
+                genre: vec![],
+                status: String::from(""),
+                description: String::from(""),
+                path: String::from(""),
+                thumbnail_url: String::from(""),
+            };
+
+            let sel = scraper::Selector::parse("img").unwrap();
+            for el in row.select(&sel) {
+                manga.thumbnail_url = el.value().attr("src").unwrap().to_owned();
+            }
+
+            let sel = scraper::Selector::parse(".resultLink").unwrap();
+            for el in row.select(&sel) {
+                manga.title = el.inner_html();
+                manga.path = el.value().attr("href").unwrap().to_owned();
+            }
+            mangas.push(manga);
         }
+
+        self.mangas = mangas
     }
 }
