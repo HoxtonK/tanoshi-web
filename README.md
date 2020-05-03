@@ -1,3 +1,5 @@
+# Merged to [tanoshi](https://github.com/fadhlika/tanoshi)
+
 # <img src="static/apple-touch-icon.png" alt="" width="30" height=30/> Tanoshi
 Tachiyomi-like web manga reader. Front-end for [tanoshi](https://github.com/fadhlika/tanoshi)
 
